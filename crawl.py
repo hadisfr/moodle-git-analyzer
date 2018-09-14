@@ -28,16 +28,21 @@ def process_gitlab(path, list_addr):
     bucket = 100
     commits_url = "https://gitlab.com/%s/commits/master?limit=%s&offset=%%s" % (path, bucket)
     user_url = "https://gitlab.com/%s"
+    user_projects_url = "https://gitlab.com/api/v4/users/%s/projects"
+    user_contributions_url = "https://gitlab.com/users/%s/contributed.json"
     commiters_regex = re.compile(
         "<li class=\"commit flex-row js-toggle-container\" id=\"commit-(.{8})\">\n" +
         "<div class=\"avatar-cell d-none d-sm-block\">\n" +
         "<a href=\"([^\"]*)\">"
     )
     user_created_at_regex = re.compile("<span class=\"middle-dot-divider\">\nMember since ([^>]*)\n</span>")
+    user_contributions_regex = re.compile("<a class=\"project\" href=\"([^\"]*)\">")
     db = get_students_list(list_addr)
     header = list(list(db.values())[0].keys())
     header.append('Gitlab Acconut')
     header.append('Gitlab Created at')
+    header.append('Gitlab Personal Projects')
+    header.append('Gitlab Contributions in Other\'s Projects')
     for i in range(ceil(len(db) / bucket)):
         matches = commiters_regex.findall(requests.get(commits_url % (i * bucket)).text)
         for match in matches:
@@ -49,6 +54,14 @@ def process_gitlab(path, list_addr):
                 db[commit_hash[:7]]['Gitlab Created at'] = user_created_at_regex.findall(
                     requests.get(user_url % username).text
                 )[0]
+                if '.' not in username:  # https://gitlab.com/gitlab-org/gitlab-ce/issues/22718#note_101497802
+                    db[commit_hash[:7]]['Gitlab Personal Projects'] = requests.get(user_projects_url %
+                                                                                   username).headers['X-Total']
+                db[commit_hash[:7]]['Gitlab Contributions in Other\'s Projects'] = len(
+                    user_contributions_regex.findall(
+                        requests.get(user_contributions_url % username).json()['html']
+                    )
+                )
     set_students_list(list_addr, db, header)
 
 
