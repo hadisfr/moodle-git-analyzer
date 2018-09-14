@@ -3,7 +3,7 @@
 import argparse
 import subprocess
 import re
-import csv
+from csv import writer as csv_writer
 from sys import argv
 from os import path, mkdir
 from shutil import rmtree
@@ -22,7 +22,7 @@ def process_xlsx(args):
 
     wb = load_workbook(args['grades'])
     report = open(args['output'], 'w')
-    report_writer = csv.writer(report)
+    report_writer = csv_writer(report)
     report_writer.writerow(['First Name', 'Last Name', 'Email', 'Commit Hash'])
 
     if path.exists(args['repo']):
@@ -45,22 +45,15 @@ def process_xlsx(args):
         report.close()
 
 
-def process_zip(args):
-    pass
-
-
 def main():
     args_parser = argparse.ArgumentParser(
         prog="%s" % argv[0]
     )
     args_subparsers = args_parser.add_subparsers(description='operation type', required=True, dest='operation')
-    parser_xlsx = args_subparsers.add_parser('xlsx', help='xlsx excel gradebook')
+    parser_xlsx = args_subparsers.add_parser('xlsx', help='XLSX excel gradebook')
     parser_xlsx.add_argument('grades', type=str, help='address of XLSX gradebook')
     parser_xlsx.add_argument('repo', type=str, help='address of to-be-created git repository')
-    parser_xlsx.add_argument('output', type=str, help='address of output csv report')
-    parser_zip = args_subparsers.add_parser('zip', help='zip submission files')
-    parser_zip.add_argument('submission', type=str, help='address of zip submission')
-    parser_zip.add_argument('repo', type=str, help='address of to-be-created git repository')
+    parser_xlsx.add_argument('output', type=str, help='address of output CSV report')
     args = vars(args_parser.parse_args())
     globals()["process_%s" % args['operation']](args)
 
