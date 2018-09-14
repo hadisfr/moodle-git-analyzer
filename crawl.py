@@ -4,9 +4,10 @@ import argparse
 import re
 import csv
 import requests
-from sys import argv
+from sys import argv, stderr
 from shutil import copy2 as copy
 from math import ceil
+from time import sleep
 
 
 def get_students_list(addr):
@@ -24,7 +25,7 @@ def set_students_list(addr, db, header):
             writer.writerow(row)
 
 
-def process_gitlab(path, list_addr):
+def crawl_gitlab(path, list_addr):
     bucket = 100
     commits_url = "https://gitlab.com/%s/commits/master?limit=%s&offset=%%s" % (path, bucket)
     user_url = "https://gitlab.com/%s"
@@ -37,6 +38,7 @@ def process_gitlab(path, list_addr):
     )
     user_created_at_regex = re.compile("<span class=\"middle-dot-divider\">\nMember since ([^>]*)\n</span>")
     user_contributions_regex = re.compile("<a class=\"project\" href=\"([^\"]*)\">")
+
     db = get_students_list(list_addr)
     header = list(list(db.values())[0].keys())
     header.append('Gitlab Acconut')
@@ -65,8 +67,45 @@ def process_gitlab(path, list_addr):
     set_students_list(list_addr, db, header)
 
 
-def process_github(path, list_addr):
-    pass
+def crawl_github(path, list_addr):
+    def _api_call(url):
+        while True:
+            res = requests.get(url)
+            if res.headers['X-RateLimit-Remaining']:
+                return res
+            else:
+                print("Rate Limit Exceeded", file=stderr)
+                sleep(3600)
+
+    bucket = 100
+    commits_url = "https://api.github.com/repos/%s/commits?per_page=%s&page=%%s" % (path, bucket)
+    user_url = "https://github.com/%s"
+    user_repositories_regex = re.compile("Repositories\n\ *<span class=\"Counter\">\n\ *([0-9]*)\n\ *</span>")
+    user_stars_regex = re.compile("Stars\n\ *<span class=\"Counter\">\n\ *([0-9]*)\n\ *</span>")
+    user_followers_regex = re.compile("Followers\n\ *<span class=\"Counter\">\n\ *([0-9]*)\n\ *</span>")
+    user_followings_regex = re.compile("Following\n\ *<span class=\"Counter\">\n\ *([0-9]*)\n\ *</span>")
+
+    db = get_students_list(list_addr)
+    header = list(list(db.values())[0].keys())
+    header.append('Github Acconut')
+    header.append('Github Repositories')
+    header.append('Github Stars')
+    header.append('Github Followings')
+    header.append('Github Followers')
+    for i in range(ceil(len(db) / bucket)):
+        commits = _api_call(commits_url % (i * bucket)).json()
+        for commit in commits:
+            if commit['author']:
+                username = commit['author']['login']
+                print(username)
+                commit_hash = commit['sha']
+                db[commit_hash[:7]]['Github Acconut'] = username
+                user_page = requests.get(user_url % username).text
+                db[commit_hash[:7]]['Github Repositories'] = user_repositories_regex.findall(user_page)[0]
+                db[commit_hash[:7]]['Github Stars'] = user_stars_regex.findall(user_page)[0]
+                db[commit_hash[:7]]['Github Followings'] = user_followings_regex.findall(user_page)[0]
+                db[commit_hash[:7]]['Github Followers'] = user_followers_regex.findall(user_page)[0]
+    set_students_list(list_addr, db, header)
 
 
 def main():
@@ -77,7 +116,7 @@ def main():
     args_parser.add_argument('path', type=str, help="remote path")
     args_parser.add_argument('list', type=str, help="CSV list of students")
     args = vars(args_parser.parse_args())
-    globals()["process_%s" % args['site']](args['path'], args['list'])
+    globals()["crawl_%s" % args['site']](args['path'], args['list'])
 
 
 if __name__ == '__main__':
