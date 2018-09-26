@@ -56,7 +56,7 @@ def crawl_gitlab(path, list_addr):
                 db[commit_hash[:7]]['Gitlab Created at'] = user_created_at_regex.findall(
                     requests.get(user_url % username).text
                 )[0]
-                if '.' not in username:  # https://gitlab.com/gitlab-org/gitlab-ce/issues/22718#note_101497802
+                if '.' not in username:  # https://gitlab.com/gitlab-org/gitlab-ce/issues/51913
                     db[commit_hash[:7]]['Gitlab Personal Projects'] = requests.get(user_projects_url %
                                                                                    username).headers['X-Total']
                 db[commit_hash[:7]]['Gitlab Contributions in Other\'s Projects'] = len(
